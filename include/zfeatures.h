@@ -84,7 +84,7 @@
 
 #define TGL_FEATURE_MULTITHREADED_COPY_TEXIMAGE_2D 1
 
-#define TGL_FEATURE_MULTITHREADED_ZB_COPYBUFFER 0
+#define TGL_FEATURE_MULTITHREADED_ZB_COPYBUFFER 1
 
 /*
  * Dirty rectangle optimization - track modified screen regions and only copy

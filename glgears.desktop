@@ -1,0 +1,7 @@
+[Desktop Entry]
+Type=Application
+Name=GLGears
+Comment=3D TinyGL Gears Demo with FPS Counter
+Exec=/bin/glgears
+Icon=/Library/AppData/org.boredos.tinygl/glgears.png
+Categories=Graphics;Demo;

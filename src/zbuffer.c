@@ -4,6 +4,7 @@
 
 #include <stdlib.h>
 #include <string.h>
+#include <pthread.h>
 
 #include "msghandling.h"
 #include "zbuffer.h"
@@ -202,6 +203,36 @@ void ZB_markFullDirty(ZBuffer *zb)
 
 #endif /* TGL_HAS(DIRTY_RECTANGLE) */
 
+#if TGL_HAS(MULTITHREADED_ZB_COPYBUFFER)
+typedef struct {
+    ZBuffer *zb;
+    void *buf;
+    GLint linesize;
+    GLint y_start;
+    GLint y_end;
+    GLint x_start;
+    GLint x_end;
+    GLint copy_width;
+} ZBCopySliceTask;
+
+static void *ZB_copySliceWorker(void *arg) {
+    ZBCopySliceTask *task = (ZBCopySliceTask *)arg;
+    for (GLint y = task->y_start; y < task->y_end; y++) {
+        PIXEL *q = task->zb->pbuf + y * task->zb->xsize + task->x_start;
+        GLubyte *p1 = (GLubyte *)task->buf + y * task->linesize + task->x_start * PSZB;
+#if TGL_HAS(NO_COPY_COLOR)
+        for (GLint i = 0; i < (task->x_end - task->x_start); i++) {
+            if ((*(q + i) & TGL_COLOR_MASK) != TGL_NO_COPY_COLOR)
+                *(((PIXEL *)p1) + i) = *(q + i);
+        }
+#else
+        memcpy(p1, q, task->copy_width);
+#endif
+    }
+    return NULL;
+}
+#endif
+
 static void ZB_copyBuffer(ZBuffer *zb, void *buf, GLint linesize)
 {
     GLint y;
@@ -227,7 +258,6 @@ static void ZB_copyBuffer(ZBuffer *zb, void *buf, GLint linesize)
 #if TGL_HAS(MULTITHREADED_ZB_COPYBUFFER)
 #ifdef _OPENMP
 #pragma omp parallel for
-#endif
     for (y = y_start; y < y_end; y++) {
         PIXEL *q = zb->pbuf + y * zb->xsize + x_start;
         GLubyte *p1 = (GLubyte *) buf + y * linesize + x_start * PSZB;
@@ -240,6 +270,44 @@ static void ZB_copyBuffer(ZBuffer *zb, void *buf, GLint linesize)
         memcpy(p1, q, copy_width);
 #endif
     }
+#else
+    {
+        int num_threads = 4;
+        int total_lines = y_end - y_start;
+        if (total_lines >= 16) {
+            pthread_t threads[4];
+            ZBCopySliceTask tasks[4];
+            int lines_per_thread = total_lines / num_threads;
+            for (int t = 0; t < num_threads; t++) {
+                tasks[t].zb = zb;
+                tasks[t].buf = buf;
+                tasks[t].linesize = linesize;
+                tasks[t].x_start = x_start;
+                tasks[t].x_end = x_end;
+                tasks[t].copy_width = copy_width;
+                tasks[t].y_start = y_start + t * lines_per_thread;
+                tasks[t].y_end = (t == num_threads - 1) ? y_end : tasks[t].y_start + lines_per_thread;
+                pthread_create(&threads[t], NULL, ZB_copySliceWorker, &tasks[t]);
+            }
+            for (int t = 0; t < num_threads; t++) {
+                pthread_join(threads[t], NULL);
+            }
+        } else {
+            for (y = y_start; y < y_end; y++) {
+                PIXEL *q = zb->pbuf + y * zb->xsize + x_start;
+                GLubyte *p1 = (GLubyte *) buf + y * linesize + x_start * PSZB;
+#if TGL_HAS(NO_COPY_COLOR)
+                for (i = 0; i < (x_end - x_start); i++) {
+                    if ((*(q + i) & TGL_COLOR_MASK) != TGL_NO_COPY_COLOR)
+                        *(((PIXEL *) p1) + i) = *(q + i);
+                }
+#else
+                memcpy(p1, q, copy_width);
+#endif
+            }
+        }
+    }
+#endif
 #else
     for (y = y_start; y < y_end; y++) {
         PIXEL *q = zb->pbuf + y * zb->xsize + x_start;

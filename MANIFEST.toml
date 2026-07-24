@@ -1,0 +1,7 @@
+name = "tinygl"
+version = "1.0.0"
+
+[install]
+bin = "/bin"
+assets = "/Library/AppData/org.boredos.tinygl"
+lib = "/usr/lib"
