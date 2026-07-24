@@ -221,7 +221,7 @@ int main(int argc, char **argv) {
         return 1;
     }
 
-    nova_set_title(nova_fd, surface_id, "GLGears (Double-Buffered)");
+    nova_set_title(nova_fd, surface_id, "GLGears)");
 
     shm_size = (size_t)WINDOW_WIDTH * WINDOW_HEIGHT * sizeof(uint32_t);
     int shm_fd = open(shm_path, O_RDWR);
